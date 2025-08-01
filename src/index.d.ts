@@ -24,7 +24,7 @@ export interface Options<P extends SupportedPlatform = SupportedPlatform> {
     /** URI to download NW binaries from */
     downloadUrl?: "https://dl.nwjs.io" | string,
     /** URI to download manifest */
-    manifestUrl?: "https://nwjs.io/versions.json" | string,
+    manifestUrl?: "https://nwjs.io/versions" | string,
     /** Refer to Linux/Windows/Osx specific options */
     app: AppOptions<P>,
     /** If true the existing cache is used. Otherwise it removes and redownloads it. */
@@ -39,8 +39,6 @@ export interface Options<P extends SupportedPlatform = SupportedPlatform> {
     glob?: boolean,
     /** Specified log level. */
     logLevel?: "error" | "warn" | "info" | "debug",
-	/** Managed manifest */
-	managedManifest?: boolean | string | object,
 }
 
 /** Platform-specific application options */
@@ -51,7 +49,7 @@ export type AppOptions<P extends SupportedPlatform> =
     : (WindowsAppOptions | OsxAppOptions | LinuxAppOptions);
 
 /** Windows configuration options
- *
+ * 
  * References:
  * - https://learn.microsoft.com/en-us/windows/win32/msi/version
  * - https://learn.microsoft.com/en-gb/windows/win32/sbscs/application-manifests
@@ -89,30 +87,28 @@ export interface WindowsAppOptions {
     productVersion: string,
     /** Text that specifies how this version of the file differs from the standard version—for example, Private build for TESTER1 solving mouse problems on M250 and M250E computers. This string should be present only if VS_FF_SPECIALBUILD is specified in the fileflags parameter of the root block. */
     specialBuild?: string,
-    /** Language of the file, defined by Microsoft, see: https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/6c085406-a698-4e12-9d4d-c3b0ee3dbc4a */
-    languageCode?: number,
 }
 
 /** Linux configuration options
- *
+ * 
  * References:
  * https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html
  */
 export interface LinuxAppOptions {
     /** Name of the application */
-    name?: string,
+    name?: string,   
     /** Generic name of the application */
-    genericName?: string,
+    genericName?: string,   
     /** If true the application is not displayed */
-    noDisplay?: boolean,
+    noDisplay?: boolean,  
     /** Tooltip for the entry, for example "View sites on the Internet". */
-    comment?: string,
+    comment?: string,   
     /** Icon to display in file manager, menus, etc. */
-    icon?: string,
+    icon?: string,   
     /** A list of strings identifying the desktop environments that should (/not) display a given desktop entry */
-    onlyShowIn?: string[],
+    onlyShowIn?: string[], 
     /**  A list of strings identifying the desktop environments that should (/not) display a given desktop entry */
-    notShowIn?: string[],
+    notShowIn?: string[], 
     /** A boolean value specifying if D-Bus activation is supported for this application */
     dBusActivatable?: boolean,
     /** Path to an executable file on disk used to determine if the program is actually installed */
@@ -144,7 +140,7 @@ export interface LinuxAppOptions {
 }
 
 /** OSX resource configuration options
- *
+ * 
  * References:
  * https://developer.apple.com/documentation/bundleresources/information_property_list
  */
@@ -152,30 +148,28 @@ export interface OsxAppOptions {
     /** The name of the application */
     name?: string,
     /** The path to the icon file. It should be a .icns file. */
-    icon?: string,
+    icon?: string, 
     /** The category that best describes your app for the App Store. */
-    LSApplicationCategoryType?: string,
+    LSApplicationCategoryType?: string, 
     /** A unique identifier for a bundle usually in reverse DNS format. */
-    CFBundleIdentifier?: string,
+    CFBundleIdentifier?: string, 
     /** A user-visible short name for the bundle. */
-    CFBundleName?: string,
+    CFBundleName?: string, 
     /** The user-visible name for the bundle. */
-    CFBundleDisplayName?: string,
+    CFBundleDisplayName?: string, 
     /** A replacement for the app name in text-to-speech operations. */
-    CFBundleSpokenName?: string,
+    CFBundleSpokenName?: string, 
     /** The version of the build that identifies an iteration of the bundle. */
-    CFBundleVersion?: string,
+    CFBundleVersion?: string, 
     /** The release or version number of the bundle. */
-    CFBundleShortVersionString?: string,
+    CFBundleShortVersionString?: string, 
     /** A human-readable copyright notice for the bundle. */
-    NSHumanReadableCopyright?: string,
-    /** A human-readable description of why the application needs access to the local network. */
-    NSLocalNetworkUsageDescription?: string,
+    NSHumanReadableCopyright?: string, 
 }
 
 /**
  * Automates building an NW.js application.
  */
-declare function nwbuild<P extends SupportedPlatform>(options: Options<P>): Promise<child_process.ChildProcess | null | undefined>;
+declare function nwbuild<P extends SupportedPlatform>(options: Options<P>): Promise<void>;
 
 export default nwbuild;

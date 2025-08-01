@@ -1,37 +1,95 @@
 #!/usr/bin/env node
 
-import process from 'node:process';
+import process from "node:process";
 
-import { program } from 'commander';
+import yargs from "yargs/yargs";
+import * as yargs_helpers from "yargs/helpers";
 
-import nwbuild from './index.js';
-import util from './util.js';
+import nwbuild from "./index.js";
 
-program
-  .argument('<string>', 'File path(s) to project')
-  .option('--mode <string>', 'get, run or build mode', 'build')
-  .option('--version <string>', 'NW.js version', 'latest')
-  .option('--flavor <string>', 'NW.js build flavor', 'normal')
-  .option('--platform <string>', 'NW.js supported platform', util.PLATFORM_KV[process.platform])
-  .option('--arch <string>', 'NW.js supported architecture', util.ARCH_KV[process.arch])
-  .option('--downloadUrl <string>', 'NW.js download server', 'https://dl.nwjs.io')
-  .option('--manifestUrl <string>', 'NW.js version info', 'https://nwjs.io/versions.json')
-  .option('--cacheDir <string>', 'Cache NW.js binaries', './cache')
-  .option('--outDir <string>', 'NW.js build artifacts', './out')
-  .option('--app <object>', 'Platform specific app metadata. Refer to docs for more info', {})
-  .option('--cache <boolean>', 'Flag to enable/disable caching', true)
-  .option('--ffmpeg <boolean>', 'Flag to enable/disable downloading community ffmpeg', false)
-  .option('--glob <boolean>', 'Flag to enable/disable globbing', true)
-  .option('--logLevel <string>', 'Specify log level', 'info')
-  .option('--shaSum <string>', 'Flag to enable/disable shasum', true)
-  .option('--zip <string>', 'Flag to enable/disable compression', false)
-  .option('--managedManifest <string>', 'Managed manifest mode', false)
-  .option('--nodeAddon <boolean>', 'Download NW.js Node headers', false);
-
-program.parse();
+const cli = yargs(yargs_helpers.hideBin(process.argv))
+  .version(false)
+  .command("[srcDir] [options]")
+  .option("mode", {
+    type: "string",
+    description: "`get`, `run` or `build` application",
+    choices: ["get", "run", "build"]
+  })
+  .option("version", {
+    type: "string",
+    description: "NW.js version",
+  })
+  .option("flavor", {
+    type: "string",
+    description: "NW.js build flavor",
+    choices: ["normal", "sdk"]
+  })
+  .option("platform", {
+    type: "string",
+    description: "NW.js supported platform",
+    choices: ["linux", "osx", "win"]
+  })
+  .option("arch", {
+    type: "string",
+    description: "NW.js supported architecture",
+    choices: ["ia32", "x64", "arm64"]
+  })
+  .option("downloadUrl", {
+    type: "string",
+    description: "NW.js download server",
+  })
+  .option("manifestUrl", {
+    type: "string",
+    description: "NW.js version info",
+  })
+  .option("cacheDir", {
+    type: "string",
+    description: "Cache NW.js binaries",
+  })
+  .option("outDir", {
+    type: "string",
+    description: "NW.js build artifacts",
+  })
+  .option("app", {
+    type: "object",
+    description: "Platform specific app metadata. Refer to docs for more info",
+  })
+  .option("cache", {
+    type: "boolean",
+    description: "Flag to enable/disable caching",
+  })
+  .option("ffmpeg", {
+    type: "boolean",
+    description: "Flag to enable/disable downloading community ffmpeg",
+  })
+  .option("glob", {
+    type: "boolean",
+    description: "Flag to enable/disable globbing",
+  })
+  .option("logLevel", {
+    type: "string",
+    description: "Specify log level",
+    choices: ["error", "warn", "info", "debug"]
+  })
+  .option("zip", {
+    type: "string",
+    description: "Flag to enable/disable compression",
+    choices: ["zip", "tar", "tgz"]
+  })
+  .option("managedManifest", {
+    type: "string",
+    description: "Managed manifest mode",
+  })
+  .option("nodeAddon", {
+    type: "string",
+    description: "Download NW.js Node headers",
+    choices: [false, "gyp"]
+  })
+  .strictOptions()
+  .parse();
 
 nwbuild({
-  ...program.opts(),
-  srcDir: program.args.join(' '),
+  ...cli,
+  srcDir: cli._.join(" "),
   cli: true,
 });

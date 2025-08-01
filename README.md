@@ -5,12 +5,15 @@
 
 Build [NW.js](https://github.com/nwjs/nw.js) applications for Mac, Windows and Linux.
 
+For version 3, please go to the [corresponding branch](https://github.com/nwutils/nw-builder/tree/v3).
+
 ## Major Features
 
 - Get, run or build applications.
 - Integrate [FFmpeg community builds](https://github.com/nwjs-ffmpeg-prebuilt/nwjs-ffmpeg-prebuilt)
-- Configure executable fields, icons and rename Helper apps
+- Configure executable fields and icons
 - Downloading from mirrors
+- Node Native Addon support
 
 ## Table of Contents
 
@@ -26,23 +29,18 @@ Build [NW.js](https://github.com/nwjs/nw.js) applications for Mac, Windows and L
 
 ## Install
 
-```shell
-npm i -D nw-builder
-```
+Every NW.js release includes a modified Node.js binary at a specific version. It is recommended to [install](https://nodejs.org/en/download/package-manager) exactly that version on the host system. Not doing so may download ABI incompatible Node modules. Consult the NW.js [versions manifest](https://nwjs.io/versions) for what Node.js version to install. It is recommended to use a Node version manager (such as [volta](https://volta.sh), n, nvm, or nvm-windows) to be able to easily install and switch between Node versions.
 
-Every NW.js release includes a modified Node.js binary at a specific version. It is recommended to [install](https://nodejs.org/en/download/package-manager) exactly that version on the host system. Not doing so may download ABI incompatible Node modules. Consult the NW.js [versions manifest](https://nwjs.io/versions.json) for what Node.js version to install. It is recommended to use a Node version manager (such as [volta](https://volta.sh), n, nvm, or nvm-windows) to be able to easily install and switch between Node versions.
+For example, NW.js v0.83.0 comes with Node.js v21.1.0.
+
+```shell
+$: node --version
+v21.1.0
+```
 
 ## Usage
 
-This package can be used via a command line interface, be imported as a JavaScript module, or configured via the Node manifest as a JSON object. If options are defined in Node manifest, then they will be used over options defined in CLI or JavaScript API.
-
-CLI interface:
-
-```shell
-nwbuild --mode=build --glob=false --flavor=sdk --cacheDir=./node_modules/nw /path/to/project
-```
-
-> Note: While using the CLI interface, `/path/to/project` refers to `options.srcDir` in the JavaScript API or JSON object.
+This package can be used via a command line interface, be imported as a JavaScript module, or configured via the Node manifest as a JSON object.
 
 ESM import:
 
@@ -54,21 +52,13 @@ CJS import:
 
 ```javascript
 let nwbuild;
-import("nw-builder")
-  .then((moduleObject) => {
-    nwbuild = moduleObject;
+import("nwbuild")
+  .then((object) => {
+    nwbuild = obj;
   })
   .catch((error) => {
     console.error(error);
   });
-
-nwbuild({
-  mode: "build",
-  glob: false,
-  flavor: "sdk",
-  cacheDir: "./node_modules/nw",
-  srcDir: "/path/to/project",
-});
 ```
 
 Node manifest usage:
@@ -76,29 +66,20 @@ Node manifest usage:
 ```json
 {
     "nwbuild": {
-      "mode": "build",
-      "glob": false,
-      "flavor": "sdk",
-      "cacheDir": "./node_modules/nw",
-      "srcDir": "/path/to/project"
+        // user specified options
     }
 }
 ```
 
-See `nw-builder` in action by building the demo application.
-
-1. `git clone https://github.com/nwutils/nw-builder`
-1. Run `npm run demo:bld:linux && npm run demo:exe:linux` to build and execute a Linux application.
-1. Run `npm run demo:bld:osx && npm run demo:exe:osx` to build and execute a MacOS application.
-1. Run `npm run demo:bld:win && npm run demo:exe:win` to build and execute a Windows application.
-
-> From here on we will show `nw-builder` functionality by using the JavaScript module. Please note that the same functionality applies when using a command line or manifest file.
+> From here on we will show `nw-builder` functionality by using the JavaScript module. Please note that the same method applies when using a command line or Node manifest.
 
 ## Concepts
 
 `nw-builder` can get, run and build NW.js applications. We refer to them as get, run and build modes.
 
 ### Get Mode
+
+> Deprecation warning: From v4.6.4 onward, run mode is deprecated. This logic will be ported over to nwjs/npm-installer repo and removed in the next major release.
 
 By default you get the normal build of the latest NW.js release for your specific platform and arch. For more information, please refer to the API reference.
 
@@ -128,15 +109,15 @@ nwbuild({
 
 ### Run Mode
 
+> Deprecation warning: From v4.6.0 onward, run mode is deprecated. This logic will be ported over to `nwjs/npm-installer` repo and removed in the next major release.
+
 ```javascript
-const nwProcess = await nwbuild({
+nwbuild({
   mode: "run",
   srcDir: "./app",
   glob: false,
 });
 ```
-
-Note: The `nwProcess` is a [Node.js process](https://nodejs.org/api/process.html#process)
 
 ### Build Mode
 
@@ -148,7 +129,7 @@ nwbuild({
 });
 ```
 
-#### Managed Manifest
+Managed Manifest
 
 You can let `nw-builder` manage your node modules. The `managedManifest` options accepts a `boolean`, `string` or `object` type. It will then remove `devDependencies`, autodetect and download `dependencies` via the relevant `packageManager`. If none is specified, it uses `npm` as default.
 
@@ -182,11 +163,9 @@ nwbuild({
 });
 ```
 
-#### Rebuild Node addons
+Rebuild Node addons
 
-> Currently this feature is disabled and it may be removed in the future.
-
-It only builds node addons which have a `binding.gyp` file in the `srcDir`. There are plans to support nan, cmake, ffi and gn and auto rebuild native addons which are installed as node modules.
+Currently this feature is quite limited. It only builds node addons which have a `binding.gyp` file in the `srcDir`. There are plans to support nan, cmake, ffi and gn and auto rebuild native addons which are installed as node modules.
 
 ```javascript
 nwbuild({
@@ -198,7 +177,7 @@ nwbuild({
 We recommend rebuilding Node addons for NW.js via `node-gyp` if you are using NW.js v0.83.0 or above.
 
 ```shell
-node-gyp rebuild --target=22.2.0 --nodedir=/path/to/nw/node/headers
+node-gyp rebuild --target=21.1.0 --nodedir=/path/to/nw/node/headers
 ```
 
 NW.js's Node version should match the Node version on the host machine due to [ABI differences in V8](https://github.com/nwjs/nw.js/issues/5025).
@@ -209,26 +188,24 @@ Options
 
 | Name | Type    | Default   | Description |
 | ---- | ------- | --------- | ----------- |
+| app | `LinuxRc \| WinRc \| OsxRc` | Additional options for each platform. (See below.)
 | mode | `"get" \| "run" \| "build"` | `"build"` | Choose between get, run or build mode |
 | version | `string \| "latest" \| "stable"` | `"latest"` | Runtime version |
 | flavor | `"normal" \| "sdk"` | `"normal"` | Runtime flavor |
 | platform | `"linux" \| "osx" \| "win"` | | Host platform |
 | arch | `"ia32" \| "x64" \| "arm64"` | | Host architecture |
 | downloadUrl | `"https://dl.nwjs.io" \| "https://npm.taobao.org/mirrors/nwjs" \| https://npmmirror.com/mirrors/nwjs \| "https://github.com/corwin-of-amber/nw.js/releases/"` | `"https://dl.nwjs.io"` | Download server. Supports file systems too (for example `file:///home/localghost/nwjs_mirror`) |
-| manifestUrl | `"https://nwjs.io/versions.json" \| "https://raw.githubusercontent.com/nwutils/nw-builder/main/src/util/osx.arm.versions.json"` | `"https://nwjs.io/versions.json"` | Versions manifest |
+| manifestUrl | `"https://nwjs.io/versions" \| "https://raw.githubusercontent.com/nwutils/nw-builder/main/src/util/osx.arm.versions.json"` | `"https://nwjs.io/versions"` | Versions manifest |
 | cacheDir | `string` | `"./cache"` | Directory to cache NW binaries |
-| cache | `boolean` | `true`| If true the existing cache is used. Otherwise it removes and redownloads it. |
-| ffmpeg | `boolean` | `false`| If true the chromium ffmpeg is replaced by community version with proprietary codecs. |
-| logLevel | `"error" \| "warn" \| "info" \| "debug"` | `"info"`| Specify level of logging. |
-| shaSum | `boolean` | `true` | Flag to enable/disable shasum checks. |
 | srcDir | `string` | `"./"` | File paths to application code |
-| argv | `string[]` | `[]` | Command line arguments to pass to NW executable in run mode. You can also define these in `chromium-args` in NW.js manifest. |
-| glob | `boolean` | `true`| If true file globbing is enabled when parsing `srcDir`. |
 | outDir | `string` | `"./out"` | Directory to store build artifacts |
 | managedManifest | `boolean \| string \| object` | `false` | Managed manifest |
 | nodeAddon | `false \| "gyp"` | `false` | Rebuild Node native addons |
+| cache | `boolean` | `true`| If true the existing cache is used. Otherwise it removes and redownloads it. |
+| ffmpeg | `boolean` | `false`| If true the chromium ffmpeg is replaced by community version with proprietary codecs. |
+| glob | `boolean` | `true`| If true file globbing is enabled when parsing `srcDir`. |
+| logLevel | `"error" \| "warn" \| "info" \| "debug"` | `"info"`| Specify level of logging. |
 | zip | `boolean \| "zip" \| "tar" \| "tgz"` | `false`| If true, "zip", "tar" or "tgz" the `outDir` directory is compressed. |
-| app | `LinuxRc \| WinRc \| OsxRc` | Additional options for each platform. (See below.)
 
 ### `app` configuration object
 
@@ -238,22 +215,21 @@ This object defines additional properties used for building for a specific platf
 
 | Name | Type    | Default   | Description |
 | ---- | ------- | --------- | ----------- |
-| `icon` | `string` | `undefined` | The path to the icon file. It should be a .ico file. (**WARNING**: Please define the icon in the NW.js manifest instead) |
-| `name` | `string` | Value of `name` in NW.js manifest | The name of the application |
-| `version` | `string` | Value of `version` in NW.js manifest | The version of the application |
+| `icon` | `string` | `undefined` | The path to the icon file. It should be a .ico file. |
+| `name` | `string` | Value of `name` in app's `package.json` | The name of the application |
+| `version` | `string` | Value of `version` in app's `package.json` | The version of the application |
 | `comments` | `string` | `undefined` | Additional information that should be displayed for diagnostic purposes. |
-| `company` | `string` | Value of `author` in NW.js manifest | Company that produced the file—for example, Microsoft Corporation or Standard Microsystems Corporation, Inc. This string is required. |
-| `fileDescription` | `string` | Value of `description` in NW.js manifest | File description to be presented to users. This string may be displayed in a list box when the user is choosing files to install. For example, Keyboard Driver for AT-Style Keyboards. This string is required. |
-| `fileVersion` | `string` | Value of `version` or value of `version` in NW.js manifest | Version number of the file. For example, 3.10 or 5.00.RC2. This string is required. |
-| `internalName` | `string` | Value of `name` in NW.js manifest |Internal name of the file, if one exists—for example, a module name if the file is a dynamic-link library. If the file has no internal name, this string should be the original filename, without extension. This string is required. |
-| `legalCopyright` | `string` | `undefined` | Copyright notices that apply to the file. This should include the full text of all notices, legal symbols, copyright dates, and so on. This string is optional. |
+| `company` | `string` | `undefined` | Company that produced the file—for example, Microsoft Corporation or Standard Microsystems Corporation, Inc. This string is required. |
+| `fileDescription` | `string` | Value of `description` in app's `package.json` | File description to be presented to users. This string may be displayed in a list box when the user is choosing files to install. For example, Keyboard Driver for AT-Style Keyboards. This string is required. |
+| `fileVersion` | `string` | Value of `version` in app's `package.json` | Version number of the file. For example, 3.10 or 5.00.RC2. This string is required. |
+| `internalName` | `string` | `undefined` |Internal name of the file, if one exists—for example, a module name if the file is a dynamic-link library. If the file has no internal name, this string should be the original filename, without extension. This string is required. |
+| `legalCopyright` | `string` | NW.js' copyright info | Copyright notices that apply to the file. This should include the full text of all notices, legal symbols, copyright dates, and so on. This string is optional. |
 | `legalTrademark` | `string` | `undefined` | Trademarks and registered trademarks that apply to the file. This should include the full text of all notices, legal symbols, trademark numbers, and so on. This string is optional. |
 | `originalFilename` | `string` | Value of `name` option | Original name of the file, not including a path. This information enables an application to determine whether a file has been renamed by a user. The format of the name depends on the file system for which the file was created. This string is required. |
 | `privateBuild` | `string` | `undefined` | Information about a private version of the file—for example, Built by TESTER1 on \\TESTBED. |
-| `productName` | `string` | `name` in NW.js manifest | Name of the product with which the file is distributed. This string is required. |
-| `productVersion` | `string` | Value of `version` in NW.js manifest | Version of the product with which the file is distributed—for example, 3.10 or 5.00.RC2. |
+| `productName` | `string` | Matches the package name defined in app's `package.json` | Name of the product with which the file is distributed. This string is required. |
+| `productVersion` | `string` | Value of `version` in app's `package.json` | Version of the product with which the file is distributed—for example, 3.10 or 5.00.RC2. |
 | `specialBuild` | `string` | `undefined` | Text that specifies how this version of the file differs from the standard version—for example, Private build for TESTER1 solving mouse problems on M250 and M250E computers. |
-| `languageCode` | `number` | `1033` | Language of the file, defined by Microsoft, see: https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/6c085406-a698-4e12-9d4d-c3b0ee3dbc4a                                                                                                 |
 
 #### Linux-specific options (`LinuxRc`)
 
@@ -263,7 +239,7 @@ This object defines additional properties used for building for a specific platf
 | genericName | `string` | Generic name of the application |
 | noDisplay | `boolean` | If true the application is not displayed |
 | comment | `string` | Tooltip for the entry, for example "View sites on the Internet". |
-| icon | `string` | Icon to display in file manager, menus, etc. (**WARNING**: Please define the icon in the NW.js manifest instead) |
+| icon | `string` | Icon to display in file manager, menus, etc. |
 | hidden | `boolean` | TBD |
 | onlyShowIn | `string[]` | A list of strings identifying the desktop environments that should display a given desktop entry |
 | notShowIn | `string[]` | A list of strings identifying the desktop environments that should not display a given desktop entry |
@@ -287,7 +263,7 @@ This object defines additional properties used for building for a specific platf
 | Name | Type    | Description |
 | ---- | ------- | ----------- |
 | name | `string` | The name of the application |
-| icon | `string` | The path to the icon file. It should be a .icns file. (**WARNING**: Please define the icon in the NW.js manifest instead) |
+| icon | `string` | The path to the icon file. It should be a .icns file. |
 | LSApplicationCategoryType | `string` | The category that best describes your app for the App Store. |
 | CFBundleIdentifier | `string` | A unique identifier for a bundle usually in reverse DNS format. |
 | CFBundleName | `string` | A user-visible short name for the bundle. |
@@ -296,7 +272,6 @@ This object defines additional properties used for building for a specific platf
 | CFBundleVersion | `string` | The version of the build that identifies an iteration of the bundle. |
 | CFBundleShortVersionString | `string` | The release or version number of the bundle. |
 | NSHumanReadableCopyright | `string` | A human-readable copyright notice for the bundle. |
-| NSLocalNetworkUsageDescription | `string` | A human-readable description of why the application needs access to the local network. |
 
 
 ## Guides
@@ -386,6 +361,7 @@ nwbuild({
 ### Features
 
 - feat(get): support canary releases
+- feat(bld): rename MacOS Helper apps
 - feat(pkg): add `AppImage` installer
 - feat(pkg): add `NSIS` installer
 - feat(pkg): add `DMG` installer
@@ -396,9 +372,11 @@ nwbuild({
 ### Chores
 
 - chore(docs): don't store JSDoc definitions in `typedef`s - get's hard to understand during development.
+- chore(get): verify sha checksum for downloads
 - chore: annotate file paths as `fs.PathLike` instead of `string`.
 - chore(bld): factor out core build step
 - chore(bld): factor out linux config
+- chore(bld): factor out macos config
 - chore(bld): factor out windows config
 - chore(bld): factor out native addon
 - chore(bld): factor out compressing

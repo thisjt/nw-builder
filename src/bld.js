@@ -1,21 +1,21 @@
-import child_process from 'node:child_process';
-import console from 'node:console';
-import fs from 'node:fs';
-import path from 'node:path';
-import process from 'node:process';
+import child_process from "node:child_process";
+import console from "node:console";
+import path from "node:path";
+import fsm from "node:fs/promises";
+import process from "node:process";
 
-import archiver from 'archiver';
-import * as resedit from 'resedit';
+import compressing from "compressing";
+import * as resedit from "resedit";
 // pe-library is a direct dependency of resedit
 import * as peLibrary from 'pe-library';
-import * as tar from 'tar';
+import plist from "plist";
 
-import util from './util.js';
-import setOsxConfig from './bld/osx.js';
+import util from "./util.js"
 
 /**
  * References:
  * https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html
+ *
  * @typedef  {object}   LinuxRc               Linux configuration options
  * @property {string}   name                  Name of the application
  * @property {string}   genericName           Generic name of the application
@@ -44,26 +44,27 @@ import setOsxConfig from './bld/osx.js';
 /**
  * References:
  * https://developer.apple.com/documentation/bundleresources/information_property_list
- * @typedef  {object} OsxRc                           OSX resource configuration options
- * @property {string} name                            The name of the application
- * @property {string} icon                            The path to the icon file. It should be a .icns file.
- * @property {string} LSApplicationCategoryType       The category that best describes your app for the App Store.
- * @property {string} CFBundleIdentifier              A unique identifier for a bundle usually in reverse DNS format.
- * @property {string} CFBundleName                    A user-visible short name for the bundle.
- * @property {string} CFBundleDisplayName             The user-visible name for the bundle.
- * @property {string} CFBundleSpokenName              A replacement for the app name in text-to-speech operations.
- * @property {string} CFBundleVersion                 The version of the build that identifies an iteration of the bundle.
- * @property {string} CFBundleShortVersionString      The release or version number of the bundle.
- * @property {string} NSHumanReadableCopyright        A human-readable copyright notice for the bundle.
- * @property {string} NSLocalNetworkUsageDescription  A human-readable description of why the application needs access to the local network.
+ *
+ * @typedef  {object} OsxRc                       OSX resource configuration options
+ * @property {string} name                        The name of the application
+ * @property {string} icon                        The path to the icon file. It should be a .icns file.
+ * @property {string} LSApplicationCategoryType   The category that best describes your app for the App Store.
+ * @property {string} CFBundleIdentifier          A unique identifier for a bundle usually in reverse DNS format.
+ * @property {string} CFBundleName                A user-visible short name for the bundle.
+ * @property {string} CFBundleDisplayName         The user-visible name for the bundle.
+ * @property {string} CFBundleSpokenName          A replacement for the app name in text-to-speech operations.
+ * @property {string} CFBundleVersion             The version of the build that identifies an iteration of the bundle.
+ * @property {string} CFBundleShortVersionString  The release or version number of the bundle.
+ * @property {string} NSHumanReadableCopyright    A human-readable copyright notice for the bundle.
  */
 
 /**
  * References:
  * https://learn.microsoft.com/en-us/windows/win32/msi/version
  * https://learn.microsoft.com/en-gb/windows/win32/sbscs/application-manifests
- * https://learn.microsoft.com/en-us/visualstudio/deployment/trustinfo-element-clickonce-application?view=vs-2022#requestedexecutionlevel
+ * https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2015/deployment/trustinfo-element-clickonce-application?view=vs-2015#requestedexecutionlevel
  * https://learn.microsoft.com/en-gb/windows/win32/menurc/versioninfo-resource
+ *
  * @typedef {object} WinRc              Windows configuration options. More info
  * @property {string} name              The name of the application
  * @property {string} version           The version of the application
@@ -80,7 +81,6 @@ import setOsxConfig from './bld/osx.js';
  * @property {string} productName       Name of the product with which the file is distributed. This string is required.
  * @property {string} productVersion    Version of the product with which the file is distributed—for example, 3.10 or 5.00.RC2. This string is required.
  * @property {string} specialBuild      Text that specifies how this version of the file differs from the standard version—for example, Private build for TESTER1 solving mouse problems on M250 and M250E computers. This string should be present only if VS_FF_SPECIALBUILD is specified in the fileflags parameter of the root block.
- * @property {string} languageCode      Language of the file, defined by Microsoft, see: https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/6c085406-a698-4e12-9d4d-c3b0ee3dbc4a
  */
 
 /**
@@ -89,7 +89,7 @@ import setOsxConfig from './bld/osx.js';
  * @property {"normal" | "sdk"}                     [flavor = "normal"]                         Build flavor
  * @property {"linux" | "osx" | "win"}              [platform]                                  Target platform
  * @property {"ia32" | "x64" | "arm64"}             [arch]                                      Target arch
- * @property {string}                               [manifestUrl = "https://nwjs.io/versions.json"]  Manifest URL
+ * @property {string}                               [manifestUrl = "https://nwjs.io/versions"]  Manifest URL
  * @property {string}                               [srcDir = "./src"]                          Source directory
  * @property {string}                               [cacheDir = "./cache"]                      Cache directory
  * @property {string}                               [outDir = "./out"]                          Out directory
@@ -98,101 +98,97 @@ import setOsxConfig from './bld/osx.js';
  * @property {boolean | string | object}            [managedManifest = false]                   Manage manifest
  * @property {false | "gyp"}                        [nativeAddon = false]                       Rebuild native modules
  * @property {false | "zip" | "tar" | "tgz"}        [zip = false]                               Compress built artifacts
- * @property {object}                               [releaseInfo = {}]                          Version specific release metadata.
  */
 
 /**
  * Build NW.js application.
+ *
  * @async
  * @function
  * @param  {BuildOptions}  options  - Build options
- * @returns {Promise<void>}
+ * @return {Promise<void>}
  */
 async function bld({
-  version = 'latest',
-  flavor = 'normal',
+  version = "latest",
+  flavor = "normal",
   platform = util.PLATFORM_KV[process.platform],
   arch = util.ARCH_KV[process.arch],
-  srcDir = './src',
-  cacheDir = './cache',
-  outDir = './out',
+  manifestUrl = "https://nwjs.io/versions",
+  srcDir = "./src",
+  cacheDir = "./cache",
+  outDir = "./out",
   app,
   glob = true,
   managedManifest = false,
   nativeAddon = false,
   zip = false,
-  releaseInfo = {},
 }) {
   const nwDir = path.resolve(
     cacheDir,
-    `nwjs${flavor === 'sdk' ? '-sdk' : ''}-v${version}-${platform
+    `nwjs${flavor === "sdk" ? "-sdk" : ""}-v${version}-${platform
     }-${arch}`,
   );
 
-  await fs.promises.rm(outDir, { force: true, recursive: true });
-  await fs.promises.cp(nwDir, outDir, { recursive: true, verbatimSymlinks: true });
+  await fsm.rm(outDir, { force: true, recursive: true });
+  await fsm.cp(nwDir, outDir, { recursive: true, verbatimSymlinks: true });
 
   const files = await util.globFiles({ srcDir, glob });
-  let manifest = await util.getNodeManifest({ srcDir, glob });
-
-  /* Set `product_string` in manifest for MacOS. This is used in renaming the Helper apps. */
-  if (platform === 'osx') {
-    manifest.json.product_string = app.name;
-    await fs.promises.writeFile(manifest.path, JSON.stringify(manifest.json));
-  }
+  const manifest = await util.getNodeManifest({ srcDir, glob });
 
   if (glob) {
     for (let file of files) {
-      const stats = await fs.promises.stat(file);
-      if (stats.isDirectory()) {
-        continue;
-      }
-      await fs.promises.cp(
+      await fsm.cp(
         file,
         path.resolve(
           outDir,
-          platform !== 'osx'
-            ? 'package.nw'
-            : 'nwjs.app/Contents/Resources/app.nw',
+          platform !== "osx"
+            ? "package.nw"
+            : "nwjs.app/Contents/Resources/app.nw",
           file,
         ),
-        { recursive: true, force: true },
+        { recursive: true, verbatimSymlinks: true },
       );
     }
   } else {
-    await fs.promises.cp(
+    await fsm.cp(
       files,
       path.resolve(
         outDir,
-        platform !== 'osx'
-          ? 'package.nw'
-          : 'nwjs.app/Contents/Resources/app.nw',
+        platform !== "osx"
+          ? "package.nw"
+          : "nwjs.app/Contents/Resources/app.nw",
       ),
       { recursive: true, verbatimSymlinks: true },
     );
   }
 
-  // const nodeVersion = releaseInfo.components.node;
+  const releaseInfo = await util.getReleaseInfo(
+    version,
+    platform,
+    arch,
+    cacheDir,
+    manifestUrl,
+  );
+  const nodeVersion = releaseInfo.components.node;
 
   if (
     managedManifest === true ||
-    typeof managedManifest === 'object' ||
-    typeof managedManifest === 'string'
+    typeof managedManifest === "object" ||
+    typeof managedManifest === "string"
   ) {
-    await manageManifest({ nwPkg: manifest.json, managedManifest, outDir, platform });
+    await manageManifest({ manifest, managedManifest, outDir, platform });
   }
 
-  if (platform === 'linux') {
+  if (platform === "linux") {
     await setLinuxConfig({ app, outDir });
-  } else if (platform === 'win') {
+  } else if (platform === "win") {
     await setWinConfig({ app, outDir });
-  } else if (platform === 'osx') {
-    await setOsxConfig({ app, outDir, releaseInfo });
+  } else if (platform === "osx") {
+    await setOsxConfig({ platform, outDir, app });
   }
 
-  if (nativeAddon === 'gyp') {
-    throw new Error('Rebuilding Node addons functionality is broken and has been disabled. This functionality may be removed in the future.');
-    // buildNativeAddon({ cacheDir, version, platform, arch, outDir, nodeVersion });
+  if (nativeAddon === "gyp") {
+    buildNativeAddon({ cacheDir, version, platform, arch, outDir, nodeVersion });
   }
 
   if (zip !== false) {
@@ -207,67 +203,69 @@ const manageManifest = async ({ nwPkg, managedManifest, outDir, platform }) => {
     manifest = nwPkg;
   }
 
-  if (typeof managedManifest === 'object') {
+  if (typeof managedManifest === "object") {
     manifest = managedManifest;
   }
 
-  if (typeof managedManifest === 'string') {
-    manifest = JSON.parse(await fs.promises.readFile(managedManifest));
+  if (typeof managedManifest === "string") {
+    manifest = JSON.parse(await fsm.readFile(managedManifest));
   }
 
   if (manifest.devDependencies) {
     manifest.devDependencies = undefined;
   }
-  manifest.packageManager = manifest.packageManager ?? 'npm@*';
+  manifest.packageManager = manifest.packageManager ?? "npm@*";
 
-  await fs.promises.writeFile(
+  await fsm.writeFile(
     path.resolve(
       outDir,
-      platform !== 'osx'
-        ? 'package.nw'
-        : 'nwjs.app/Contents/Resources/app.nw',
-      'package.json',
+      platform !== "osx"
+        ? "package.nw"
+        : "nwjs.app/Contents/Resources/app.nw",
+      "package.json",
     ),
     JSON.stringify(manifest, null, 2),
-    'utf8',
+    "utf8",
   );
 
-  const cwd = path.resolve(
-    outDir,
-    platform !== 'osx'
-      ? 'package.nw'
-      : 'nwjs.app/Contents/Resources/app.nw',
+  process.chdir(
+    path.resolve(
+      outDir,
+      platform !== "osx"
+        ? "package.nw"
+        : "nwjs.app/Contents/Resources/app.nw",
+    ),
   );
 
-  if (manifest.packageManager.startsWith('npm')) {
-    child_process.execSync('npm install', { cwd });
-  } else if (manifest.packageManager.startsWith('yarn')) {
-    child_process.execSync('yarn install', { cwd });
-  } else if (manifest.packageManager.startsWith('pnpm')) {
-    child_process.execSync('pnpm install', { cwd });
+  if (manifest.packageManager.startsWith("npm")) {
+    child_process.execSync(`npm install`);
+  } else if (manifest.packageManager.startsWith("yarn")) {
+    child_process.execSync(`yarn install`);
+  } else if (manifest.packageManager.startsWith("pnpm")) {
+    child_process.execSync(`pnpm install`);
   }
 };
 
 const setLinuxConfig = async ({ app, outDir }) => {
-  if (process.platform === 'win32') {
+  if (process.platform === "win32") {
     console.warn(
-      'Linux apps built on Windows platform do not preserve all file permissions. See #716',
+      "Linux apps built on Windows platform do not preserve all file permissions. See #716",
     );
   }
   let desktopEntryFile = {
-    Type: 'Application',
-    Version: '1.5',
+    Type: "Application",
+    Version: "1.5",
     Name: app.name,
     GenericName: app.genericName,
     NoDisplay: app.noDisplay,
     Comment: app.comment,
-    Icon: app.icon ? path.resolve(outDir, 'package.nw', app.icon) : '',
+    Icon: app.icon,
     Hidden: app.hidden,
     OnlyShowIn: app.onlyShowIn,
     NotShowIn: app.notShowIn,
     DBusActivatable: app.dBusActivatable,
     TryExec: app.tryExec,
-    Exec: app.exec,
+    Exec: app.name,
     Path: app.path,
     Terminal: app.terminal,
     Actions: app.actions,
@@ -281,32 +279,32 @@ const setLinuxConfig = async ({ app, outDir }) => {
     SingleMainWindow: app.singleMainWindow,
   };
 
-  await fs.promises.rename(`${outDir}/nw`, `${outDir}/${app.name}`);
+  await fsm.rename(`${outDir}/nw`, `${outDir}/${app.name}`);
 
-  let fileContent = '[Desktop Entry]\n';
+  let fileContent = `[Desktop Entry]\n`;
   Object.keys(desktopEntryFile).forEach((key) => {
     if (desktopEntryFile[key] !== undefined) {
       fileContent += `${key}=${desktopEntryFile[key]}\n`;
     }
   });
   let filePath = `${outDir}/${app.name}.desktop`;
-  await fs.promises.writeFile(filePath, fileContent);
+  await fsm.writeFile(filePath, fileContent);
 };
 
 const setWinConfig = async ({ app, outDir }) => {
   let versionString = {
     Comments: app.comments,
-    CompanyName: app.company,
+    CompanyName: app.author,
     FileDescription: app.fileDescription,
     FileVersion: app.fileVersion,
-    InternalName: app.internalName,
+    InternalName: app.name,
     LegalCopyright: app.legalCopyright,
     LegalTrademarks: app.legalTrademark,
-    OriginalFilename: app.originalFilename,
-    PrivateBuild: app.privateBuild,
-    ProductName: app.productName,
-    ProductVersion: app.productVersion,
-    SpecialBuild: app.specialBuild,
+    OriginalFilename: app.name,
+    PrivateBuild: app.name,
+    ProductName: app.name,
+    ProductVersion: app.version,
+    SpecialBuild: app.name,
   };
 
   Object.keys(versionString).forEach((option) => {
@@ -316,81 +314,127 @@ const setWinConfig = async ({ app, outDir }) => {
   });
 
   const outDirAppExe = path.resolve(outDir, `${app.name}.exe`);
-  await fs.promises.rename(path.resolve(outDir, 'nw.exe'), outDirAppExe);
-  const exe = peLibrary.NtExecutable.from(await fs.promises.readFile(outDirAppExe));
+  await fsm.rename(path.resolve(outDir, "nw.exe"), outDirAppExe);
+  const exe = peLibrary.NtExecutable.from(await fsm.readFile(outDirAppExe));
   const res = peLibrary.NtExecutableResource.from(exe);
   // English (United States)
   const EN_US = 1033;
   if (app.icon) {
-    const iconBuffer = await fs.promises.readFile(path.resolve(app.icon));
+    const iconBuffer = await fsm.readFile(path.resolve(app.icon));
     const iconFile = resedit.Data.IconFile.from(iconBuffer);
-    const iconGroupIDs = resedit.Resource.IconGroupEntry.fromEntries(res.entries).map((entry) => entry.id);
     resedit.Resource.IconGroupEntry.replaceIconsForResource(
       res.entries,
-      /*  Should be `IDR_MAINFRAME` */
-      iconGroupIDs[0],
+      // This is the name of the icon group nw.js uses that gets shown in file exlorers
+      'IDR_MAINFRAME',
       EN_US,
       iconFile.icons.map(i => i.data)
     );
   }
   const [vi] = resedit.Resource.VersionInfo.fromEntries(res.entries);
-  if (app.languageCode !== EN_US) {
-    res.removeResourceEntry(16, 1, EN_US);
-    vi.removeAllStringValues({
-      lang: EN_US,
-      codepage: 1200,
-    });
-    vi.lang=app.languageCode;
-  }
-  vi.setFileVersion(app.fileVersion, app.languageCode);
-  vi.setProductVersion(app.productVersion, app.languageCode);
+  const [major, minor, patch] = app.version.split(".");
+  vi.setFileVersion(major, minor, patch, 0, EN_US);
   vi.setStringValues({
-    lang: app.languageCode,
+    lang: EN_US,
     codepage: 1200
   }, versionString);
   vi.outputToResourceEntries(res.entries);
   res.outputResource(exe);
   const outBuffer = Buffer.from(exe.generate());
-  await fs.promises.writeFile(outDirAppExe, outBuffer);
+  await fsm.writeFile(outDirAppExe, outBuffer);
 };
 
-/*
+const setOsxConfig = async ({ outDir, app }) => {
+  if (process.platform === "win32") {
+    console.warn(
+      "MacOS apps built on Windows platform do not preserve all file permissions. See #716",
+    );
+  }
+
+  try {
+    const outApp = path.resolve(outDir, `${app.name}.app`);
+    await fsm.rename(path.resolve(outDir, "nwjs.app"), outApp);
+    if (app.icon !== undefined) {
+      await fsm.copyFile(
+        path.resolve(app.icon),
+        path.resolve(outApp, "Contents", "Resources", "app.icns"),
+      );
+    }
+
+    const infoPlistPath = path.resolve(outApp, "Contents", "Info.plist");
+    const infoPlistJson = plist.parse(await fsm.readFile(infoPlistPath, "utf-8"));
+
+    const infoPlistStringsPath = path.resolve(
+      outApp,
+      "Contents",
+      "Resources",
+      "en.lproj",
+      "InfoPlist.strings",
+    );
+    const infoPlistStringsData = await fsm.readFile(
+      infoPlistStringsPath,
+      "utf-8",
+    );
+
+    let infoPlistStringsDataArray = infoPlistStringsData.split("\n");
+
+    infoPlistStringsDataArray.forEach((line, idx, arr) => {
+      if (line.includes("NSHumanReadableCopyright")) {
+        arr[idx] =
+          `NSHumanReadableCopyright = "${app.NSHumanReadableCopyright}";`;
+      }
+    });
+
+    infoPlistJson.LSApplicationCategoryType = app.LSApplicationCategoryType;
+    infoPlistJson.CFBundleIdentifier = app.CFBundleIdentifier;
+    infoPlistJson.CFBundleName = app.CFBundleName;
+    infoPlistJson.CFBundleDisplayName = app.CFBundleDisplayName;
+    infoPlistJson.CFBundleSpokenName = app.CFBundleSpokenName;
+    infoPlistJson.CFBundleVersion = app.CFBundleVersion;
+    infoPlistJson.CFBundleShortVersionString = app.CFBundleShortVersionString;
+
+    Object.keys(infoPlistJson).forEach((option) => {
+      if (infoPlistJson[option] === undefined) {
+        delete infoPlistJson[option];
+      }
+    });
+
+    await fsm.writeFile(infoPlistPath, plist.build(infoPlistJson));
+    await fsm.writeFile(
+      infoPlistStringsPath,
+      infoPlistStringsDataArray.toString().replace(/,/g, "\n"),
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 const buildNativeAddon = ({ cacheDir, version, platform, arch, outDir, nodeVersion }) => {
   let nodePath = path.resolve(cacheDir, `node-v${version}-${platform}-${arch}`);
-  const cwd = path.resolve(
-    outDir,
-    platform !== 'osx'
-      ? 'package.nw'
-      : 'nwjs.app/Contents/Resources/app.nw',
+  process.chdir(
+    path.resolve(
+      outDir,
+      platform !== "osx"
+        ? "package.nw"
+        : "nwjs.app/Contents/Resources/app.nw",
+    ),
   );
 
-  child_process.execFileSync('node-gyp', ['rebuild', `--target=${nodeVersion}`, `--nodedir=${nodePath}`], { cwd });
+  child_process.execSync(`node-gyp rebuild --target=${nodeVersion} --nodedir=${nodePath}`);
 };
-*/
 
 const compress = async ({
   zip,
   outDir,
 }) => {
-  if (zip === true || zip === 'zip') {
-    const archive = archiver('zip');
-    const writeStream = fs.createWriteStream(`${outDir}.zip`);
-    archive.pipe(writeStream);
-    archive.directory(outDir, false);
-    await archive.finalize();
-  } else if (zip === 'tar') {
-    await tar.create({
-      gzip: false,
-      file: `${outDir}.tar`,
-    }, [outDir]);
-  } else if (zip === 'tgz') {
-    await tar.create({
-      gzip: true,
-      file: `${outDir}.tgz`,
-    }, [outDir]);
+  if (zip === true || zip === "zip") {
+    await compressing.zip.compressDir(outDir, `${outDir}.zip`);
+  } else if (zip === "tar") {
+    await compressing.tar.compressDir(outDir, `${outDir}.tar`);
+  } else if (zip === "tgz") {
+    await compressing.tgz.compressDir(outDir, `${outDir}.tgz`);
   }
 
-  await fs.promises.rm(outDir, { recursive: true, force: true });
+  await fsm.rm(outDir, { recursive: true, force: true });
 };
 
 export default bld;
