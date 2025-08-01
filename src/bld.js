@@ -1,16 +1,16 @@
-import child_process from "node:child_process";
-import console from "node:console";
-import path from "node:path";
-import fsm from "node:fs/promises";
-import process from "node:process";
+import child_process from 'node:child_process';
+import console from 'node:console';
+import path from 'node:path';
+import fsm from 'node:fs/promises';
+import process from 'node:process';
 
-import compressing from "compressing";
-import * as resedit from "resedit";
+import compressing from 'compressing';
+import * as resedit from 'resedit';
 // pe-library is a direct dependency of resedit
 import * as peLibrary from 'pe-library';
-import plist from "plist";
+import plist from 'plist';
 
-import util from "./util.js"
+import util from './util.js';
 
 /**
  * References:
@@ -89,7 +89,7 @@ import util from "./util.js"
  * @property {"normal" | "sdk"}                     [flavor = "normal"]                         Build flavor
  * @property {"linux" | "osx" | "win"}              [platform]                                  Target platform
  * @property {"ia32" | "x64" | "arm64"}             [arch]                                      Target arch
- * @property {string}                               [manifestUrl = "https://nwjs.io/versions"]  Manifest URL
+ * @property {string}                               [manifestUrl = "https://nwjs.io/versions.json"]  Manifest URL
  * @property {string}                               [srcDir = "./src"]                          Source directory
  * @property {string}                               [cacheDir = "./cache"]                      Cache directory
  * @property {string}                               [outDir = "./out"]                          Out directory
@@ -109,332 +109,255 @@ import util from "./util.js"
  * @return {Promise<void>}
  */
 async function bld({
-  version = "latest",
-  flavor = "normal",
-  platform = util.PLATFORM_KV[process.platform],
-  arch = util.ARCH_KV[process.arch],
-  manifestUrl = "https://nwjs.io/versions",
-  srcDir = "./src",
-  cacheDir = "./cache",
-  outDir = "./out",
-  app,
-  glob = true,
-  managedManifest = false,
-  nativeAddon = false,
-  zip = false,
+	version = 'latest',
+	flavor = 'normal',
+	platform = util.PLATFORM_KV[process.platform],
+	arch = util.ARCH_KV[process.arch],
+	manifestUrl = 'https://nwjs.io/versions.json',
+	srcDir = './src',
+	cacheDir = './cache',
+	outDir = './out',
+	app,
+	glob = true,
+	managedManifest = false,
+	nativeAddon = false,
+	zip = false,
 }) {
-  const nwDir = path.resolve(
-    cacheDir,
-    `nwjs${flavor === "sdk" ? "-sdk" : ""}-v${version}-${platform
-    }-${arch}`,
-  );
+	const nwDir = path.resolve(cacheDir, `nwjs${flavor === 'sdk' ? '-sdk' : ''}-v${version}-${platform}-${arch}`);
 
-  await fsm.rm(outDir, { force: true, recursive: true });
-  await fsm.cp(nwDir, outDir, { recursive: true, verbatimSymlinks: true });
+	await fsm.rm(outDir, { force: true, recursive: true });
+	await fsm.cp(nwDir, outDir, { recursive: true, verbatimSymlinks: true });
 
-  const files = await util.globFiles({ srcDir, glob });
-  const manifest = await util.getNodeManifest({ srcDir, glob });
+	const files = await util.globFiles({ srcDir, glob });
+	const manifest = await util.getNodeManifest({ srcDir, glob });
 
-  if (glob) {
-    for (let file of files) {
-      await fsm.cp(
-        file,
-        path.resolve(
-          outDir,
-          platform !== "osx"
-            ? "package.nw"
-            : "nwjs.app/Contents/Resources/app.nw",
-          file,
-        ),
-        { recursive: true, verbatimSymlinks: true },
-      );
-    }
-  } else {
-    await fsm.cp(
-      files,
-      path.resolve(
-        outDir,
-        platform !== "osx"
-          ? "package.nw"
-          : "nwjs.app/Contents/Resources/app.nw",
-      ),
-      { recursive: true, verbatimSymlinks: true },
-    );
-  }
+	if (glob) {
+		for (let file of files) {
+			await fsm.cp(file, path.resolve(outDir, platform !== 'osx' ? 'package.nw' : 'nwjs.app/Contents/Resources/app.nw', file), { recursive: true, verbatimSymlinks: true });
+		}
+	} else {
+		await fsm.cp(files, path.resolve(outDir, platform !== 'osx' ? 'package.nw' : 'nwjs.app/Contents/Resources/app.nw'), { recursive: true, verbatimSymlinks: true });
+	}
 
-  const releaseInfo = await util.getReleaseInfo(
-    version,
-    platform,
-    arch,
-    cacheDir,
-    manifestUrl,
-  );
-  const nodeVersion = releaseInfo.components.node;
+	const releaseInfo = await util.getReleaseInfo(version, platform, arch, cacheDir, manifestUrl);
+	const nodeVersion = releaseInfo.components.node;
 
-  if (
-    managedManifest === true ||
-    typeof managedManifest === "object" ||
-    typeof managedManifest === "string"
-  ) {
-    await manageManifest({ manifest, managedManifest, outDir, platform });
-  }
+	if (managedManifest === true || typeof managedManifest === 'object' || typeof managedManifest === 'string') {
+		await manageManifest({ manifest, managedManifest, outDir, platform });
+	}
 
-  if (platform === "linux") {
-    await setLinuxConfig({ app, outDir });
-  } else if (platform === "win") {
-    await setWinConfig({ app, outDir });
-  } else if (platform === "osx") {
-    await setOsxConfig({ platform, outDir, app });
-  }
+	if (platform === 'linux') {
+		await setLinuxConfig({ app, outDir });
+	} else if (platform === 'win') {
+		await setWinConfig({ app, outDir });
+	} else if (platform === 'osx') {
+		await setOsxConfig({ platform, outDir, app });
+	}
 
-  if (nativeAddon === "gyp") {
-    buildNativeAddon({ cacheDir, version, platform, arch, outDir, nodeVersion });
-  }
+	if (nativeAddon === 'gyp') {
+		buildNativeAddon({ cacheDir, version, platform, arch, outDir, nodeVersion });
+	}
 
-  if (zip !== false) {
-    await compress({ zip, outDir });
-  }
+	if (zip !== false) {
+		await compress({ zip, outDir });
+	}
 }
 
 const manageManifest = async ({ nwPkg, managedManifest, outDir, platform }) => {
-  let manifest = undefined;
+	let manifest = undefined;
 
-  if (managedManifest === true) {
-    manifest = nwPkg;
-  }
+	if (managedManifest === true) {
+		manifest = nwPkg;
+	}
 
-  if (typeof managedManifest === "object") {
-    manifest = managedManifest;
-  }
+	if (typeof managedManifest === 'object') {
+		manifest = managedManifest;
+	}
 
-  if (typeof managedManifest === "string") {
-    manifest = JSON.parse(await fsm.readFile(managedManifest));
-  }
+	if (typeof managedManifest === 'string') {
+		manifest = JSON.parse(await fsm.readFile(managedManifest));
+	}
 
-  if (manifest.devDependencies) {
-    manifest.devDependencies = undefined;
-  }
-  manifest.packageManager = manifest.packageManager ?? "npm@*";
+	if (manifest.devDependencies) {
+		manifest.devDependencies = undefined;
+	}
+	manifest.packageManager = manifest.packageManager ?? 'npm@*';
 
-  await fsm.writeFile(
-    path.resolve(
-      outDir,
-      platform !== "osx"
-        ? "package.nw"
-        : "nwjs.app/Contents/Resources/app.nw",
-      "package.json",
-    ),
-    JSON.stringify(manifest, null, 2),
-    "utf8",
-  );
+	await fsm.writeFile(path.resolve(outDir, platform !== 'osx' ? 'package.nw' : 'nwjs.app/Contents/Resources/app.nw', 'package.json'), JSON.stringify(manifest, null, 2), 'utf8');
 
-  process.chdir(
-    path.resolve(
-      outDir,
-      platform !== "osx"
-        ? "package.nw"
-        : "nwjs.app/Contents/Resources/app.nw",
-    ),
-  );
+	process.chdir(path.resolve(outDir, platform !== 'osx' ? 'package.nw' : 'nwjs.app/Contents/Resources/app.nw'));
 
-  if (manifest.packageManager.startsWith("npm")) {
-    child_process.execSync(`npm install`);
-  } else if (manifest.packageManager.startsWith("yarn")) {
-    child_process.execSync(`yarn install`);
-  } else if (manifest.packageManager.startsWith("pnpm")) {
-    child_process.execSync(`pnpm install`);
-  }
+	if (manifest.packageManager.startsWith('npm')) {
+		child_process.execSync(`npm install`);
+	} else if (manifest.packageManager.startsWith('yarn')) {
+		child_process.execSync(`yarn install`);
+	} else if (manifest.packageManager.startsWith('pnpm')) {
+		child_process.execSync(`pnpm install`);
+	}
 };
 
 const setLinuxConfig = async ({ app, outDir }) => {
-  if (process.platform === "win32") {
-    console.warn(
-      "Linux apps built on Windows platform do not preserve all file permissions. See #716",
-    );
-  }
-  let desktopEntryFile = {
-    Type: "Application",
-    Version: "1.5",
-    Name: app.name,
-    GenericName: app.genericName,
-    NoDisplay: app.noDisplay,
-    Comment: app.comment,
-    Icon: app.icon,
-    Hidden: app.hidden,
-    OnlyShowIn: app.onlyShowIn,
-    NotShowIn: app.notShowIn,
-    DBusActivatable: app.dBusActivatable,
-    TryExec: app.tryExec,
-    Exec: app.name,
-    Path: app.path,
-    Terminal: app.terminal,
-    Actions: app.actions,
-    MimeType: app.mimeType,
-    Categories: app.categories,
-    Implements: app.implements,
-    Keywords: app.keywords,
-    StartupNotify: app.startupNotify,
-    StartupWMClass: app.startupWMClass,
-    PrefersNonDefaultGPU: app.prefersNonDefaultGPU,
-    SingleMainWindow: app.singleMainWindow,
-  };
+	if (process.platform === 'win32') {
+		console.warn('Linux apps built on Windows platform do not preserve all file permissions. See #716');
+	}
+	let desktopEntryFile = {
+		Type: 'Application',
+		Version: '1.5',
+		Name: app.name,
+		GenericName: app.genericName,
+		NoDisplay: app.noDisplay,
+		Comment: app.comment,
+		Icon: app.icon,
+		Hidden: app.hidden,
+		OnlyShowIn: app.onlyShowIn,
+		NotShowIn: app.notShowIn,
+		DBusActivatable: app.dBusActivatable,
+		TryExec: app.tryExec,
+		Exec: app.name,
+		Path: app.path,
+		Terminal: app.terminal,
+		Actions: app.actions,
+		MimeType: app.mimeType,
+		Categories: app.categories,
+		Implements: app.implements,
+		Keywords: app.keywords,
+		StartupNotify: app.startupNotify,
+		StartupWMClass: app.startupWMClass,
+		PrefersNonDefaultGPU: app.prefersNonDefaultGPU,
+		SingleMainWindow: app.singleMainWindow,
+	};
 
-  await fsm.rename(`${outDir}/nw`, `${outDir}/${app.name}`);
+	await fsm.rename(`${outDir}/nw`, `${outDir}/${app.name}`);
 
-  let fileContent = `[Desktop Entry]\n`;
-  Object.keys(desktopEntryFile).forEach((key) => {
-    if (desktopEntryFile[key] !== undefined) {
-      fileContent += `${key}=${desktopEntryFile[key]}\n`;
-    }
-  });
-  let filePath = `${outDir}/${app.name}.desktop`;
-  await fsm.writeFile(filePath, fileContent);
+	let fileContent = `[Desktop Entry]\n`;
+	Object.keys(desktopEntryFile).forEach((key) => {
+		if (desktopEntryFile[key] !== undefined) {
+			fileContent += `${key}=${desktopEntryFile[key]}\n`;
+		}
+	});
+	let filePath = `${outDir}/${app.name}.desktop`;
+	await fsm.writeFile(filePath, fileContent);
 };
 
 const setWinConfig = async ({ app, outDir }) => {
-  let versionString = {
-    Comments: app.comments,
-    CompanyName: app.author,
-    FileDescription: app.fileDescription,
-    FileVersion: app.fileVersion,
-    InternalName: app.name,
-    LegalCopyright: app.legalCopyright,
-    LegalTrademarks: app.legalTrademark,
-    OriginalFilename: app.name,
-    PrivateBuild: app.name,
-    ProductName: app.name,
-    ProductVersion: app.version,
-    SpecialBuild: app.name,
-  };
+	let versionString = {
+		Comments: app.comments,
+		CompanyName: app.author,
+		FileDescription: app.fileDescription,
+		FileVersion: app.fileVersion,
+		InternalName: app.name,
+		LegalCopyright: app.legalCopyright,
+		LegalTrademarks: app.legalTrademark,
+		OriginalFilename: app.name,
+		PrivateBuild: app.name,
+		ProductName: app.name,
+		ProductVersion: app.version,
+		SpecialBuild: app.name,
+	};
 
-  Object.keys(versionString).forEach((option) => {
-    if (versionString[option] === undefined) {
-      delete versionString[option];
-    }
-  });
+	Object.keys(versionString).forEach((option) => {
+		if (versionString[option] === undefined) {
+			delete versionString[option];
+		}
+	});
 
-  const outDirAppExe = path.resolve(outDir, `${app.name}.exe`);
-  await fsm.rename(path.resolve(outDir, "nw.exe"), outDirAppExe);
-  const exe = peLibrary.NtExecutable.from(await fsm.readFile(outDirAppExe));
-  const res = peLibrary.NtExecutableResource.from(exe);
-  // English (United States)
-  const EN_US = 1033;
-  if (app.icon) {
-    const iconBuffer = await fsm.readFile(path.resolve(app.icon));
-    const iconFile = resedit.Data.IconFile.from(iconBuffer);
-    resedit.Resource.IconGroupEntry.replaceIconsForResource(
-      res.entries,
-      // This is the name of the icon group nw.js uses that gets shown in file exlorers
-      'IDR_MAINFRAME',
-      EN_US,
-      iconFile.icons.map(i => i.data)
-    );
-  }
-  const [vi] = resedit.Resource.VersionInfo.fromEntries(res.entries);
-  const [major, minor, patch] = app.version.split(".");
-  vi.setFileVersion(major, minor, patch, 0, EN_US);
-  vi.setStringValues({
-    lang: EN_US,
-    codepage: 1200
-  }, versionString);
-  vi.outputToResourceEntries(res.entries);
-  res.outputResource(exe);
-  const outBuffer = Buffer.from(exe.generate());
-  await fsm.writeFile(outDirAppExe, outBuffer);
+	const outDirAppExe = path.resolve(outDir, `${app.name}.exe`);
+	await fsm.rename(path.resolve(outDir, 'nw.exe'), outDirAppExe);
+	const exe = peLibrary.NtExecutable.from(await fsm.readFile(outDirAppExe));
+	const res = peLibrary.NtExecutableResource.from(exe);
+	// English (United States)
+	const EN_US = 1033;
+	if (app.icon) {
+		const iconBuffer = await fsm.readFile(path.resolve(app.icon));
+		const iconFile = resedit.Data.IconFile.from(iconBuffer);
+		resedit.Resource.IconGroupEntry.replaceIconsForResource(
+			res.entries,
+			// This is the name of the icon group nw.js uses that gets shown in file exlorers
+			'IDR_MAINFRAME',
+			EN_US,
+			iconFile.icons.map((i) => i.data)
+		);
+	}
+	const [vi] = resedit.Resource.VersionInfo.fromEntries(res.entries);
+	const [major, minor, patch] = app.version.split('.');
+	vi.setFileVersion(major, minor, patch, 0, EN_US);
+	vi.setStringValues(
+		{
+			lang: EN_US,
+			codepage: 1200,
+		},
+		versionString
+	);
+	vi.outputToResourceEntries(res.entries);
+	res.outputResource(exe);
+	const outBuffer = Buffer.from(exe.generate());
+	await fsm.writeFile(outDirAppExe, outBuffer);
 };
 
 const setOsxConfig = async ({ outDir, app }) => {
-  if (process.platform === "win32") {
-    console.warn(
-      "MacOS apps built on Windows platform do not preserve all file permissions. See #716",
-    );
-  }
+	if (process.platform === 'win32') {
+		console.warn('MacOS apps built on Windows platform do not preserve all file permissions. See #716');
+	}
 
-  try {
-    const outApp = path.resolve(outDir, `${app.name}.app`);
-    await fsm.rename(path.resolve(outDir, "nwjs.app"), outApp);
-    if (app.icon !== undefined) {
-      await fsm.copyFile(
-        path.resolve(app.icon),
-        path.resolve(outApp, "Contents", "Resources", "app.icns"),
-      );
-    }
+	try {
+		const outApp = path.resolve(outDir, `${app.name}.app`);
+		await fsm.rename(path.resolve(outDir, 'nwjs.app'), outApp);
+		if (app.icon !== undefined) {
+			await fsm.copyFile(path.resolve(app.icon), path.resolve(outApp, 'Contents', 'Resources', 'app.icns'));
+		}
 
-    const infoPlistPath = path.resolve(outApp, "Contents", "Info.plist");
-    const infoPlistJson = plist.parse(await fsm.readFile(infoPlistPath, "utf-8"));
+		const infoPlistPath = path.resolve(outApp, 'Contents', 'Info.plist');
+		const infoPlistJson = plist.parse(await fsm.readFile(infoPlistPath, 'utf-8'));
 
-    const infoPlistStringsPath = path.resolve(
-      outApp,
-      "Contents",
-      "Resources",
-      "en.lproj",
-      "InfoPlist.strings",
-    );
-    const infoPlistStringsData = await fsm.readFile(
-      infoPlistStringsPath,
-      "utf-8",
-    );
+		const infoPlistStringsPath = path.resolve(outApp, 'Contents', 'Resources', 'en.lproj', 'InfoPlist.strings');
+		const infoPlistStringsData = await fsm.readFile(infoPlistStringsPath, 'utf-8');
 
-    let infoPlistStringsDataArray = infoPlistStringsData.split("\n");
+		let infoPlistStringsDataArray = infoPlistStringsData.split('\n');
 
-    infoPlistStringsDataArray.forEach((line, idx, arr) => {
-      if (line.includes("NSHumanReadableCopyright")) {
-        arr[idx] =
-          `NSHumanReadableCopyright = "${app.NSHumanReadableCopyright}";`;
-      }
-    });
+		infoPlistStringsDataArray.forEach((line, idx, arr) => {
+			if (line.includes('NSHumanReadableCopyright')) {
+				arr[idx] = `NSHumanReadableCopyright = "${app.NSHumanReadableCopyright}";`;
+			}
+		});
 
-    infoPlistJson.LSApplicationCategoryType = app.LSApplicationCategoryType;
-    infoPlistJson.CFBundleIdentifier = app.CFBundleIdentifier;
-    infoPlistJson.CFBundleName = app.CFBundleName;
-    infoPlistJson.CFBundleDisplayName = app.CFBundleDisplayName;
-    infoPlistJson.CFBundleSpokenName = app.CFBundleSpokenName;
-    infoPlistJson.CFBundleVersion = app.CFBundleVersion;
-    infoPlistJson.CFBundleShortVersionString = app.CFBundleShortVersionString;
+		infoPlistJson.LSApplicationCategoryType = app.LSApplicationCategoryType;
+		infoPlistJson.CFBundleIdentifier = app.CFBundleIdentifier;
+		infoPlistJson.CFBundleName = app.CFBundleName;
+		infoPlistJson.CFBundleDisplayName = app.CFBundleDisplayName;
+		infoPlistJson.CFBundleSpokenName = app.CFBundleSpokenName;
+		infoPlistJson.CFBundleVersion = app.CFBundleVersion;
+		infoPlistJson.CFBundleShortVersionString = app.CFBundleShortVersionString;
 
-    Object.keys(infoPlistJson).forEach((option) => {
-      if (infoPlistJson[option] === undefined) {
-        delete infoPlistJson[option];
-      }
-    });
+		Object.keys(infoPlistJson).forEach((option) => {
+			if (infoPlistJson[option] === undefined) {
+				delete infoPlistJson[option];
+			}
+		});
 
-    await fsm.writeFile(infoPlistPath, plist.build(infoPlistJson));
-    await fsm.writeFile(
-      infoPlistStringsPath,
-      infoPlistStringsDataArray.toString().replace(/,/g, "\n"),
-    );
-  } catch (error) {
-    console.error(error);
-  }
+		await fsm.writeFile(infoPlistPath, plist.build(infoPlistJson));
+		await fsm.writeFile(infoPlistStringsPath, infoPlistStringsDataArray.toString().replace(/,/g, '\n'));
+	} catch (error) {
+		console.error(error);
+	}
 };
 
 const buildNativeAddon = ({ cacheDir, version, platform, arch, outDir, nodeVersion }) => {
-  let nodePath = path.resolve(cacheDir, `node-v${version}-${platform}-${arch}`);
-  process.chdir(
-    path.resolve(
-      outDir,
-      platform !== "osx"
-        ? "package.nw"
-        : "nwjs.app/Contents/Resources/app.nw",
-    ),
-  );
+	let nodePath = path.resolve(cacheDir, `node-v${version}-${platform}-${arch}`);
+	process.chdir(path.resolve(outDir, platform !== 'osx' ? 'package.nw' : 'nwjs.app/Contents/Resources/app.nw'));
 
-  child_process.execSync(`node-gyp rebuild --target=${nodeVersion} --nodedir=${nodePath}`);
+	child_process.execSync(`node-gyp rebuild --target=${nodeVersion} --nodedir=${nodePath}`);
 };
 
-const compress = async ({
-  zip,
-  outDir,
-}) => {
-  if (zip === true || zip === "zip") {
-    await compressing.zip.compressDir(outDir, `${outDir}.zip`);
-  } else if (zip === "tar") {
-    await compressing.tar.compressDir(outDir, `${outDir}.tar`);
-  } else if (zip === "tgz") {
-    await compressing.tgz.compressDir(outDir, `${outDir}.tgz`);
-  }
+const compress = async ({ zip, outDir }) => {
+	if (zip === true || zip === 'zip') {
+		await compressing.zip.compressDir(outDir, `${outDir}.zip`);
+	} else if (zip === 'tar') {
+		await compressing.tar.compressDir(outDir, `${outDir}.tar`);
+	} else if (zip === 'tgz') {
+		await compressing.tgz.compressDir(outDir, `${outDir}.tgz`);
+	}
 
-  await fsm.rm(outDir, { recursive: true, force: true });
+	await fsm.rm(outDir, { recursive: true, force: true });
 };
 
 export default bld;
